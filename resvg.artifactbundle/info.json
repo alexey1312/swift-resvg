@@ -1,0 +1,39 @@
+{
+    "schemaVersion": "1.0",
+    "artifacts": {
+        "CResvg": {
+            "type": "staticLibrary",
+            "version": "0.45.1",
+            "variants": [
+                {
+                    "path": "macos-universal/libresvg.a",
+                    "supportedTriples": [
+                        "arm64-apple-macosx",
+                        "x86_64-apple-macosx"
+                    ],
+                    "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap",
+                        "linkedLibraries": ["iconv"]
+                    }
+                },
+                {
+                    "path": "linux-x86_64/libresvg.a",
+                    "supportedTriples": ["x86_64-unknown-linux-gnu"],
+                    "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap"
+                    }
+                },
+                {
+                    "path": "linux-aarch64/libresvg.a",
+                    "supportedTriples": ["aarch64-unknown-linux-gnu"],
+                    "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap"
+                    }
+                }
+            ]
+        }
+    }
+}

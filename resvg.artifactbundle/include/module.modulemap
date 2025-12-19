@@ -1,0 +1,5 @@
+module CResvg {
+    header "resvg.h"
+    link "resvg"
+    export *
+}
