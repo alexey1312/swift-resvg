@@ -15,7 +15,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nicklockwood/swift-resvg.git", from: "0.45.1"),
+    .package(url: "https://github.com/alexey1312/swift-resvg.git", from: "0.45.1"),
 ]
 ```
 
@@ -82,6 +82,16 @@ To rebuild the static libraries:
 # Build Linux only (via Docker)
 ./Scripts/build.sh 0.45.1 --linux
 ```
+
+## Creating a Release
+
+To create a new release, run the workflow manually:
+
+```bash
+gh workflow run release.yml -f version=0.46.0
+```
+
+Or via GitHub UI: Actions → Release → Run workflow → enter version (without `v` prefix).
 
 ## Included Platforms
 

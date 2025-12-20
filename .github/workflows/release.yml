@@ -1,60 +1,87 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g., 0.45.1)"
+        required: true
 
 permissions:
   contents: write
 
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
-  create-release:
+  release:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           lfs: true
+          fetch-depth: 0
 
-      - name: Extract version info
-        id: version
+      - name: Validate version format
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-          # Determine if this is a pre-release (has suffix like -beta, -rc1, etc.)
-          if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          else
-            echo "prerelease=true" >> $GITHUB_OUTPUT
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ $VERSION == v* ]]; then
+            echo "Error: Version should not start with 'v'. Use format: 0.45.1"
+            exit 1
           fi
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must follow semver format (major.minor.patch)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Extract resvg version from bundle
-        id: resvg
+      - name: Create artifact bundle zip
         run: |
-          RESVG_VERSION=$(jq -r '.artifacts.CResvg.version' resvg.artifactbundle/info.json)
-          echo "version=$RESVG_VERSION" >> $GITHUB_OUTPUT
+          zip -r resvg.artifactbundle.zip resvg.artifactbundle
+          CHECKSUM=$(sha256sum resvg.artifactbundle.zip | cut -d' ' -f1)
+          echo "CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
+          echo "Checksum: ${CHECKSUM}"
+
+      - name: Update Package.swift
+        run: |
+          sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
+          sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
+          cat Package.swift
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git diff --staged --quiet || git commit -m "chore(release): v${{ env.VERSION }}"
+          git push origin main
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          generate_release_notes: true
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          files: resvg.artifactbundle.zip
           body: |
-            ## swift-resvg ${{ steps.version.outputs.tag }}
+            ## swift-resvg v${{ env.VERSION }}
 
-            Swift bindings for [resvg](https://github.com/RazrFalcon/resvg) v${{ steps.resvg.outputs.version }}.
+            Swift bindings for [resvg](https://github.com/RazrFalcon/resvg) v${{ env.VERSION }}.
 
             ### Installation
 
             ```swift
-            .package(url: "https://github.com/alexey1312/swift-resvg.git", from: "${{ steps.version.outputs.tag }}")
+            .package(url: "https://github.com/alexey1312/swift-resvg.git", from: "${{ env.VERSION }}")
             ```
+
+            ### Artifact Bundle
+
+            **Checksum (SHA256):** `${{ env.CHECKSUM }}`
 
             ### Bundled Libraries
 
