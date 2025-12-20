@@ -13,7 +13,7 @@ let package = Package(
         .binaryTarget(
             name: "CResvg",
             url: "https://github.com/alexey1312/swift-resvg/releases/download/v0.45.1/resvg.artifactbundle.zip",
-            checksum: "PLACEHOLDER"
+            checksum: "ddc7dce20ac220d2371254d0206b5ab94c862f2d04cfe529ab7dc67fb255c456"
         ),
         .target(
             name: "Resvg",
