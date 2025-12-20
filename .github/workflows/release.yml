@@ -18,9 +18,10 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout main
+        uses: actions/checkout@v6
         with:
-          lfs: true
+          ref: main
           fetch-depth: 0
 
       - name: Validate version format
@@ -43,19 +44,29 @@ jobs:
           echo "CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
           echo "Checksum: ${CHECKSUM}"
 
+      - name: Setup release branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and checkout release branch
+          git fetch origin release/artifact-bundle
+          git checkout release/artifact-bundle
+
+          # Copy Swift sources from main (in case they changed)
+          git checkout main -- Sources/Resvg/
+
       - name: Update Package.swift
         run: |
           sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
           sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
           cat Package.swift
 
-      - name: Commit changes
+      - name: Commit and push release branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Package.swift
+          git add Package.swift Sources/
           git diff --staged --quiet || git commit -m "chore(release): v${{ env.VERSION }}"
-          git push origin main
+          git push origin release/artifact-bundle
 
       - name: Create and push tag
         run: |

@@ -15,9 +15,19 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
+    .package(url: "https://github.com/alexey1312/swift-resvg.git", branch: "release/artifact-bundle"),
+]
+```
+
+Or with a specific version tag:
+
+```swift
+dependencies: [
     .package(url: "https://github.com/alexey1312/swift-resvg.git", from: "0.45.1"),
 ]
 ```
+
+> **Note:** Use `branch: "release/artifact-bundle"` for the latest release. Version tags are created on this branch.
 
 Then add `Resvg` to your target dependencies:
 
