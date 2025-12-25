@@ -509,6 +509,26 @@ bool resvg_render_node(const resvg_render_tree *tree,
                        uint32_t height,
                        char *pixmap);
 
+/**
+ * @brief Exports the parsed tree back to normalized SVG string.
+ *
+ * The SVG is normalized by usvg with all defaults applied:
+ * - Missing fill defaults to black
+ * - CSS styles are resolved
+ * - `<use>` references are expanded
+ * - clip-path elements are resolved
+ *
+ * @param tree Render tree.
+ * @param len Output: length of the returned string (excluding null terminator).
+ * @return Normalized SVG string. NULL on error. Must be freed via resvg_svg_string_destroy.
+ */
+char* resvg_tree_to_svg(const resvg_render_tree *tree, uintptr_t *len);
+
+/**
+ * @brief Frees SVG string allocated by resvg_tree_to_svg.
+ */
+void resvg_svg_string_destroy(char *svg);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus
