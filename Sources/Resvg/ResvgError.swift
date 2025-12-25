@@ -11,6 +11,7 @@ public enum ResvgError: LocalizedError, Equatable, Sendable {
     case parsingFailed
     case unknownError(code: Int32)
     case emptyImage
+    case svgExportFailed
 
     /// Creates a ResvgError from a resvg error code
     /// - Parameter code: The error code from resvg C API
@@ -54,6 +55,8 @@ public enum ResvgError: LocalizedError, Equatable, Sendable {
             "Unknown resvg error (code: \(code))"
         case .emptyImage:
             "SVG has no renderable elements"
+        case .svgExportFailed:
+            "Failed to export normalized SVG"
         }
     }
 
@@ -75,6 +78,8 @@ public enum ResvgError: LocalizedError, Equatable, Sendable {
             nil
         case .emptyImage:
             "Ensure the SVG contains visible elements"
+        case .svgExportFailed:
+            "SVG may contain unsupported features"
         }
     }
 }
