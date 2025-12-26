@@ -10,11 +10,11 @@ let package = Package(
         .library(name: "Resvg", targets: ["Resvg"]),
     ],
     targets: [
-        // Binary target using SE-0482 artifact bundle (URL-based for SPM compatibility)
+        // Binary target using SE-0482 artifact bundle
+        // Note: Uses local path during development. Release workflow auto-updates to URL.
         .binaryTarget(
             name: "CResvg",
-            url: "https://github.com/alexey1312/swift-resvg/releases/download/v0.45.1-swift.2/resvg.artifactbundle.zip",
-            checksum: "b892a0ea23dfc316ab3388b3d95ec049e661e80b95490adf535f227383c59fe0"
+            path: "resvg.artifactbundle"
         ),
 
         // Swift wrapper

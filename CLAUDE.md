@@ -13,6 +13,7 @@ swift test
 
 # Run a single test
 swift test --filter SvgRasterizerTests/rasterizeSimpleSvg
+swift test --filter TreeTraversalTests/createSvgTree
 
 # Rebuild static libraries (requires Rust + Docker for Linux)
 ./Scripts/build.sh 0.45.1           # All platforms
@@ -26,9 +27,21 @@ Swift bindings for [resvg](https://github.com/RazrFalcon/resvg) (Rust SVG render
 
 **Package structure:**
 - `CResvg` - Binary target containing prebuilt static libraries via `resvg.artifactbundle/`
-- `Resvg` - Swift wrapper target exposing `SvgRasterizer` and `ResvgError`
+- `Resvg` - Swift wrapper target with two main APIs:
+  - `SvgRasterizer` - SVG to RGBA rasterization
+  - `SvgTree` - Tree traversal and inspection API
 
-**Key flow:** `SvgRasterizer.rasterize()` → parses SVG via `resvg_parse_tree_from_data` → renders to premultiplied RGBA via `resvg_render` → unpremultiplies alpha → returns `RasterizedSvg` with straight-alpha RGBA bytes.
+**Rasterization flow:** `SvgRasterizer.rasterize()` → parses SVG via `resvg_parse_tree_from_data` → renders to premultiplied RGBA via `resvg_render` → unpremultiplies alpha → returns `RasterizedSvg` with straight-alpha RGBA bytes.
+
+**Tree Traversal API:**
+- `SvgTree` - Owns parsed SVG, provides `root: Group` and `toSvgString()`
+- `TreeNode` - Polymorphic node with `nodeType` and `as*()` casting methods
+- `Group` - Container with children, transform, opacity, mask, clipPath
+- `Path` - Bezier paths with segments, fill, stroke
+- `Fill`/`Stroke` - Paint properties (color, gradients)
+- `LinearGradient`/`RadialGradient` - Gradient definitions with stops
+- `ImageNode` - Embedded images (JPEG, PNG, GIF, SVG)
+- `TextNode` - Text elements with `flattened` paths
 
 **Requirements:** Swift 6.2+ (for SE-0482), macOS 12.0+ or Linux (x86_64/aarch64)
 
