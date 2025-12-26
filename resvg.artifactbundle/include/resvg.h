@@ -126,7 +126,9 @@ typedef struct {
 } resvg_rect;
 
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 /**
  * @brief Creates an identity transform.
@@ -532,10 +534,7 @@ char* resvg_tree_to_svg(const resvg_render_tree *tree, uintptr_t *len);
 void resvg_svg_string_destroy(char *svg);
 
 #ifdef __cplusplus
-
-
-#ifdef __cplusplus
 } // extern "C"
-#endif // __cplusplus
+#endif
 
 #endif /* RESVG_H */
