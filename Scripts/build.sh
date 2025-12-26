@@ -48,8 +48,14 @@ fi
 
 echo "=== Building resvg $RESVG_VERSION artifact bundle ==="
 
-# Clean and clone resvg
-rm -rf "$BUILD_DIR"
+# Clean and clone resvg (use sudo on CI for Docker-created files)
+if [ -d "$BUILD_DIR" ]; then
+    if command -v sudo &> /dev/null && [ -n "${CI:-}" ]; then
+        sudo rm -rf "$BUILD_DIR"
+    else
+        rm -rf "$BUILD_DIR"
+    fi
+fi
 mkdir -p "$BUILD_DIR"
 echo "Cloning resvg v$RESVG_VERSION..."
 git clone --depth 1 --branch "v$RESVG_VERSION" \
@@ -2003,8 +2009,12 @@ cat > "$BUNDLE_DIR/info.json" << EOF
 }
 EOF
 
-# Clean up build directory
-rm -rf "$BUILD_DIR"
+# Clean up build directory (use sudo on CI for Docker-created files)
+if command -v sudo &> /dev/null && [ -n "${CI:-}" ]; then
+    sudo rm -rf "$BUILD_DIR"
+else
+    rm -rf "$BUILD_DIR"
+fi
 
 echo ""
 echo "=== Done ==="
