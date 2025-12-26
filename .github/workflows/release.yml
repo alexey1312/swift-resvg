@@ -7,7 +7,7 @@ on:
         description: "Version number (e.g., 0.45.1 or 0.45.1-swift.2)"
         required: true
       rebuild:
-        description: "Rebuild libraries before release (requires Docker)"
+        description: "Rebuild libraries before release"
         type: boolean
         default: false
 
@@ -18,9 +18,87 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  # Build macOS libraries on macOS runner
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    if: ${{ github.event.inputs.rebuild == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Extract resvg version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          RESVG_VERSION="${VERSION%%-swift.*}"
+          echo "RESVG_VERSION=$RESVG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build macOS libraries
+        run: ./Scripts/build.sh "${{ env.RESVG_VERSION }}" --macos
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: resvg.artifactbundle/macos-universal/libresvg.a
+
+  # Build Linux libraries on Linux runner
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.rebuild == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Extract resvg version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          RESVG_VERSION="${VERSION%%-swift.*}"
+          echo "RESVG_VERSION=$RESVG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build Linux libraries
+        run: ./Scripts/build.sh "${{ env.RESVG_VERSION }}" --linux
+
+      - name: Upload Linux x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: resvg.artifactbundle/linux-x86_64/libresvg.a
+
+      - name: Upload Linux aarch64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: resvg.artifactbundle/linux-aarch64/libresvg.a
+
+      - name: Upload header
+        uses: actions/upload-artifact@v4
+        with:
+          name: include
+          path: resvg.artifactbundle/include/
+
+  # Create release (runs after builds or immediately if no rebuild)
   release:
     name: Create Release
     runs-on: macos-latest
+    needs: [build-macos, build-linux]
+    if: always() && (github.event.inputs.rebuild != 'true' || (needs.build-macos.result == 'success' && needs.build-linux.result == 'success'))
     steps:
       - name: Checkout main
         uses: actions/checkout@v6
@@ -41,23 +119,36 @@ jobs:
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          # Extract base resvg version (without -swift.N suffix)
           RESVG_VERSION="${VERSION%%-swift.*}"
           echo "RESVG_VERSION=$RESVG_VERSION" >> "$GITHUB_ENV"
 
-      - name: Setup Rust
+      - name: Download macOS artifact
         if: ${{ github.event.inputs.rebuild == 'true' }}
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-universal
+          path: resvg.artifactbundle/macos-universal/
 
-      - name: Setup Docker (macOS)
+      - name: Download Linux x86_64 artifact
         if: ${{ github.event.inputs.rebuild == 'true' }}
-        uses: crazy-max/ghaction-setup-docker@v4
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64
+          path: resvg.artifactbundle/linux-x86_64/
 
-      - name: Rebuild libraries
+      - name: Download Linux aarch64 artifact
         if: ${{ github.event.inputs.rebuild == 'true' }}
-        run: |
-          echo "Rebuilding libraries for version ${{ env.RESVG_VERSION }}..."
-          ./Scripts/build.sh ${{ env.RESVG_VERSION }}
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64
+          path: resvg.artifactbundle/linux-aarch64/
+
+      - name: Download headers
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: include
+          path: resvg.artifactbundle/include/
 
       - name: Validate artifact bundle
         run: |
@@ -68,7 +159,7 @@ jobs:
               echo "ERROR: Missing $lib"
               exit 1
             fi
-            size=$(stat -c%s "$lib" 2>/dev/null || stat -f%z "$lib" 2>/dev/null || wc -c < "$lib")
+            size=$(stat -f%z "$lib" 2>/dev/null || stat -c%s "$lib" 2>/dev/null || wc -c < "$lib")
             if [ "$size" -lt 1000000 ]; then
               echo "ERROR: $lib seems too small ($size bytes)"
               exit 1
@@ -91,11 +182,8 @@ jobs:
 
       - name: Setup release branch
         run: |
-          # Fetch and checkout release branch
           git fetch origin release/artifact-bundle
           git checkout release/artifact-bundle
-
-          # Copy Swift sources from main (in case they changed)
           git checkout main -- Sources/Resvg/
 
       - name: Update Package.swift on release branch
