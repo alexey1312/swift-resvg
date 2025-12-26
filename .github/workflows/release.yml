@@ -20,7 +20,7 @@ env:
 jobs:
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout main
         uses: actions/checkout@v6
@@ -32,22 +32,26 @@ jobs:
       - name: Validate version format
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          if [[ $VERSION == v* ]]; then
+          if [[ "$VERSION" == v* ]]; then
             echo "Error: Version should not start with 'v'. Use format: 0.45.1 or 0.45.1-swift.2"
             exit 1
           fi
-          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-swift\.[0-9]+)?$ ]]; then
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-swift\.[0-9]+)?$ ]]; then
             echo "Error: Version must follow format: major.minor.patch or major.minor.patch-swift.N"
             exit 1
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           # Extract base resvg version (without -swift.N suffix)
-          RESVG_VERSION=$(echo "$VERSION" | sed 's/-swift\.[0-9]*$//')
-          echo "RESVG_VERSION=$RESVG_VERSION" >> $GITHUB_ENV
+          RESVG_VERSION="${VERSION%%-swift.*}"
+          echo "RESVG_VERSION=$RESVG_VERSION" >> "$GITHUB_ENV"
 
       - name: Setup Rust
         if: ${{ github.event.inputs.rebuild == 'true' }}
         uses: dtolnay/rust-action@stable
+
+      - name: Setup Docker (macOS)
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        uses: crazy-max/ghaction-setup-docker@v4
 
       - name: Rebuild libraries
         if: ${{ github.event.inputs.rebuild == 'true' }}
@@ -76,8 +80,8 @@ jobs:
       - name: Create artifact bundle zip
         run: |
           zip -r resvg.artifactbundle.zip resvg.artifactbundle
-          CHECKSUM=$(sha256sum resvg.artifactbundle.zip | cut -d' ' -f1)
-          echo "CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
+          CHECKSUM=$(shasum -a 256 resvg.artifactbundle.zip | cut -d' ' -f1)
+          echo "CHECKSUM=${CHECKSUM}" >> "$GITHUB_ENV"
           echo "Checksum: ${CHECKSUM}"
 
       - name: Setup git config
@@ -96,8 +100,8 @@ jobs:
 
       - name: Update Package.swift on release branch
         run: |
-          sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
-          sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
+          sed -i '' "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
+          sed -i '' "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
           cat Package.swift
 
       - name: Commit and push release branch
@@ -143,8 +147,8 @@ jobs:
       - name: Update main branch
         run: |
           git checkout main
-          sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
-          sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
+          sed -i '' "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
+          sed -i '' "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
           git add Package.swift
           if ! git diff --staged --quiet; then
             git commit -m "chore: update Package.swift to v${{ env.VERSION }}"
