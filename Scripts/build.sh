@@ -22,6 +22,15 @@
 
 set -euo pipefail
 
+# Cross-platform sed in-place (macOS uses -i '', Linux uses -i)
+sedi() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 RESVG_VERSION="${1:-0.45.1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -1853,12 +1862,12 @@ HEADER_PATCH
 cat "$BUNDLE_DIR/include/resvg.h.tmp" >> "$BUNDLE_DIR/include/resvg.h"
 rm "$BUNDLE_DIR/include/resvg.h.tmp"
 # Remove all ending markers (will add them back correctly)
-sed -i '' '/^#ifdef __cplusplus$/d' "$BUNDLE_DIR/include/resvg.h"
-sed -i '' '/^} \/\/ extern "C"$/d' "$BUNDLE_DIR/include/resvg.h"
-sed -i '' '/#endif \/\/ __cplusplus/d' "$BUNDLE_DIR/include/resvg.h"
-sed -i '' '/#endif \/\* RESVG_H \*\//d' "$BUNDLE_DIR/include/resvg.h"
+sedi '/^#ifdef __cplusplus$/d' "$BUNDLE_DIR/include/resvg.h"
+sedi '/^} \/\/ extern "C"$/d' "$BUNDLE_DIR/include/resvg.h"
+sedi '/#endif \/\/ __cplusplus/d' "$BUNDLE_DIR/include/resvg.h"
+sedi '/#endif \/\* RESVG_H \*\//d' "$BUNDLE_DIR/include/resvg.h"
 # Fix opening extern "C" to have proper C++ guard
-sed -i '' 's/^extern "C" {$/#ifdef __cplusplus\nextern "C" {\n#endif/' "$BUNDLE_DIR/include/resvg.h"
+sedi 's/^extern "C" {$/#ifdef __cplusplus\nextern "C" {\n#endif/' "$BUNDLE_DIR/include/resvg.h"
 # Add proper closing markers
 echo "" >> "$BUNDLE_DIR/include/resvg.h"
 echo "#ifdef __cplusplus" >> "$BUNDLE_DIR/include/resvg.h"
