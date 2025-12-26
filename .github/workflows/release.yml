@@ -243,8 +243,8 @@ jobs:
 
       - name: Update main branch
         run: |
-          # Discard uncommitted artifact changes (zip already created)
-          git checkout -- resvg.artifactbundle/ 2>/dev/null || true
+          # Remove artifact bundle before switching (zip already created)
+          rm -rf resvg.artifactbundle/
           git checkout main
           sed -i '' "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
           sed -i '' "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
