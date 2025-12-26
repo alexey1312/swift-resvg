@@ -125,9 +125,8 @@ typedef struct {
     float height;
 } resvg_rect;
 
-#ifdef __cplusplus
+
 extern "C" {
-#endif // __cplusplus
 
 /**
  * @brief Creates an identity transform.
@@ -509,6 +508,9 @@ bool resvg_render_node(const resvg_render_tree *tree,
                        uint32_t height,
                        char *pixmap);
 
+
+
+
 /**
  * @brief Exports the parsed tree back to normalized SVG string.
  *
@@ -528,6 +530,9 @@ char* resvg_tree_to_svg(const resvg_render_tree *tree, uintptr_t *len);
  * @brief Frees SVG string allocated by resvg_tree_to_svg.
  */
 void resvg_svg_string_destroy(char *svg);
+
+#ifdef __cplusplus
+
 
 #ifdef __cplusplus
 } // extern "C"
