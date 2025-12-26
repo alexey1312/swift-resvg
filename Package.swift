@@ -20,7 +20,17 @@ let package = Package(
         // Swift wrapper
         .target(
             name: "Resvg",
-            dependencies: ["CResvg"]
+            dependencies: ["CResvg"],
+            linkerSettings: [
+                // Workaround: SwiftPM doesn't add artifact bundle path to linker search paths on Linux
+                .unsafeFlags(
+                    [
+                        "-L\(Context.packageDirectory)/resvg.artifactbundle/linux-x86_64",
+                        "-L\(Context.packageDirectory)/resvg.artifactbundle/linux-aarch64",
+                    ],
+                    .when(platforms: [.linux])
+                ),
+            ]
         ),
 
         // Tests
