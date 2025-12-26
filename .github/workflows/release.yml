@@ -182,8 +182,17 @@ jobs:
 
       - name: Setup release branch
         run: |
+          # Save downloaded artifacts before switching branches
+          if [ -d "resvg.artifactbundle" ]; then
+            mv resvg.artifactbundle /tmp/artifacts
+          fi
           git fetch origin release/artifact-bundle
           git checkout release/artifact-bundle
+          # Restore artifacts (overwrite whatever was on the branch)
+          if [ -d "/tmp/artifacts" ]; then
+            rm -rf resvg.artifactbundle
+            mv /tmp/artifacts resvg.artifactbundle
+          fi
           git checkout main -- Sources/Resvg/
 
       - name: Update Package.swift on release branch
@@ -234,6 +243,8 @@ jobs:
 
       - name: Update main branch
         run: |
+          # Discard uncommitted artifact changes (zip already created)
+          git checkout -- resvg.artifactbundle/ 2>/dev/null || true
           git checkout main
           sed -i '' "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
           sed -i '' "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
