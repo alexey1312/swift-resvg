@@ -6,6 +6,10 @@ on:
       version:
         description: "Version number (e.g., 0.45.1 or 0.45.1-swift.2)"
         required: true
+      rebuild:
+        description: "Rebuild libraries before release (requires Docker)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -19,10 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+          lfs: true
 
       - name: Validate version format
         run: |
@@ -40,6 +45,34 @@ jobs:
           RESVG_VERSION=$(echo "$VERSION" | sed 's/-swift\.[0-9]*$//')
           echo "RESVG_VERSION=$RESVG_VERSION" >> $GITHUB_ENV
 
+      - name: Setup Rust
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        uses: dtolnay/rust-action@stable
+
+      - name: Rebuild libraries
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        run: |
+          echo "Rebuilding libraries for version ${{ env.RESVG_VERSION }}..."
+          ./Scripts/build.sh ${{ env.RESVG_VERSION }}
+
+      - name: Validate artifact bundle
+        run: |
+          echo "Validating artifact bundle..."
+          for platform in macos-universal linux-x86_64 linux-aarch64; do
+            lib="resvg.artifactbundle/$platform/libresvg.a"
+            if [ ! -f "$lib" ]; then
+              echo "ERROR: Missing $lib"
+              exit 1
+            fi
+            size=$(stat -c%s "$lib" 2>/dev/null || stat -f%z "$lib" 2>/dev/null || wc -c < "$lib")
+            if [ "$size" -lt 1000000 ]; then
+              echo "ERROR: $lib seems too small ($size bytes)"
+              exit 1
+            fi
+            echo "✓ $platform: $((size/1024/1024))MB"
+          done
+          echo "Artifact bundle validated successfully"
+
       - name: Create artifact bundle zip
         run: |
           zip -r resvg.artifactbundle.zip resvg.artifactbundle
@@ -47,11 +80,13 @@ jobs:
           echo "CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
           echo "Checksum: ${CHECKSUM}"
 
-      - name: Setup release branch
+      - name: Setup git config
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Setup release branch
+        run: |
           # Fetch and checkout release branch
           git fetch origin release/artifact-bundle
           git checkout release/artifact-bundle
@@ -59,7 +94,7 @@ jobs:
           # Copy Swift sources from main (in case they changed)
           git checkout main -- Sources/Resvg/
 
-      - name: Update Package.swift
+      - name: Update Package.swift on release branch
         run: |
           sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
           sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
@@ -104,3 +139,14 @@ jobs:
             | macOS | arm64 + x86_64 (universal) | ~43 MB |
             | Linux | x86_64 | ~28 MB |
             | Linux | aarch64 | ~29 MB |
+
+      - name: Update main branch
+        run: |
+          git checkout main
+          sed -i "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
+          sed -i "s|checksum: \"[^\"]*\"|checksum: \"${{ env.CHECKSUM }}\"|g" Package.swift
+          git add Package.swift
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update Package.swift to v${{ env.VERSION }}"
+            git push origin main
+          fi
