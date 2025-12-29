@@ -62,3 +62,5 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 resvg.artifactbundle.zip
+Resvg.xcframework/
+Resvg.xcframework.zip

@@ -173,7 +173,15 @@ jobs:
           zip -r resvg.artifactbundle.zip resvg.artifactbundle
           CHECKSUM=$(shasum -a 256 resvg.artifactbundle.zip | cut -d' ' -f1)
           echo "CHECKSUM=${CHECKSUM}" >> "$GITHUB_ENV"
-          echo "Checksum: ${CHECKSUM}"
+          echo "Artifact bundle checksum: ${CHECKSUM}"
+
+      - name: Create XCFramework
+        run: |
+          ./Scripts/build-xcframework.sh
+          zip -r Resvg.xcframework.zip Resvg.xcframework
+          XCFRAMEWORK_CHECKSUM=$(shasum -a 256 Resvg.xcframework.zip | cut -d' ' -f1)
+          echo "XCFRAMEWORK_CHECKSUM=${XCFRAMEWORK_CHECKSUM}" >> "$GITHUB_ENV"
+          echo "XCFramework checksum: ${XCFRAMEWORK_CHECKSUM}"
 
       - name: Setup git config
         run: |
@@ -182,10 +190,12 @@ jobs:
 
       - name: Setup release branch
         run: |
-          # Save downloaded artifacts before switching branches
+          # Save artifacts before switching branches
           if [ -d "resvg.artifactbundle" ]; then
             mv resvg.artifactbundle /tmp/artifacts
           fi
+          mv resvg.artifactbundle.zip /tmp/
+          mv Resvg.xcframework.zip /tmp/
           git fetch origin release/artifact-bundle
           git checkout release/artifact-bundle
           # Restore artifacts (overwrite whatever was on the branch)
@@ -193,6 +203,8 @@ jobs:
             rm -rf resvg.artifactbundle
             mv /tmp/artifacts resvg.artifactbundle
           fi
+          mv /tmp/resvg.artifactbundle.zip .
+          mv /tmp/Resvg.xcframework.zip .
           git checkout main -- Sources/Resvg/
 
       - name: Update Package.swift on release branch
@@ -207,6 +219,24 @@ jobs:
           git diff --staged --quiet || git commit -m "chore(release): v${{ env.VERSION }}"
           git push origin release/artifact-bundle
 
+      - name: Setup xcframework release branch
+        run: |
+          git fetch origin release/xcframework || true
+          git checkout release/xcframework 2>/dev/null || git checkout -b release/xcframework
+          git checkout main -- Sources/Resvg/ Scripts/build-xcframework.sh
+
+      - name: Update xcframework Package.swift
+        run: |
+          sed -i '' "s|releases/download/v[^/]*/|releases/download/v${{ env.VERSION }}/|g" Package.swift
+          sed -i '' "s|checksum: \"[^\"]*\"|checksum: \"${{ env.XCFRAMEWORK_CHECKSUM }}\"|g" Package.swift
+          cat Package.swift
+
+      - name: Commit and push xcframework branch
+        run: |
+          git add Package.swift Sources/ Scripts/
+          git diff --staged --quiet || git commit -m "chore(release): v${{ env.VERSION }}"
+          git push origin release/xcframework
+
       - name: Create and push tag
         run: |
           git tag "v${{ env.VERSION }}"
@@ -217,7 +247,9 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
-          files: resvg.artifactbundle.zip
+          files: |
+            resvg.artifactbundle.zip
+            Resvg.xcframework.zip
           body: |
             ## swift-resvg v${{ env.VERSION }}
 
@@ -225,13 +257,22 @@ jobs:
 
             ### Installation
 
+            **Option 1: Artifact Bundle (Swift 6.2+, recommended)**
             ```swift
-            .package(url: "https://github.com/alexey1312/swift-resvg.git", from: "${{ env.VERSION }}")
+            .package(url: "https://github.com/alexey1312/swift-resvg.git", branch: "release/artifact-bundle")
             ```
 
-            ### Artifact Bundle
+            **Option 2: XCFramework (Swift 5.9+)**
+            ```swift
+            .package(url: "https://github.com/alexey1312/swift-resvg.git", branch: "release/xcframework")
+            ```
 
-            **Checksum (SHA256):** `${{ env.CHECKSUM }}`
+            ### Checksums (SHA256)
+
+            | Artifact | Checksum |
+            |----------|----------|
+            | Artifact Bundle | `${{ env.CHECKSUM }}` |
+            | XCFramework | `${{ env.XCFRAMEWORK_CHECKSUM }}` |
 
             ### Bundled Libraries
 
