@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
@@ -12,13 +12,16 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "CResvg",
-            url: "https://github.com/alexey1312/swift-resvg/releases/download/v0.45.1-swift.3/resvg.artifactbundle.zip",
-            checksum: "7aaf1e3c103bb0c8371e0f38f7f21a5e2f3d2d7a5025aff5754f069f43ec3797"
+            url: "https://github.com/alexey1312/swift-resvg/releases/download/v0.45.1-swift.3/Resvg.xcframework.zip",
+            checksum: "2f1deba53d6a20fd51bbf417582fa9b9efd31aa4b7aeedfa9e28267909b7ac78"
         ),
         .target(
             name: "Resvg",
             dependencies: ["CResvg"],
-            path: "Sources/Resvg"
+            path: "Sources/Resvg",
+            linkerSettings: [
+                .linkedLibrary("iconv", .when(platforms: [.macOS])),
+            ]
         ),
     ]
 )
