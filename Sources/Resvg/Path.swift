@@ -121,7 +121,7 @@ public struct PathSegment: Sendable, Equatable {
     public let y2: Float
 
     init(_ seg: resvg_path_segment) {
-        self.type = SegmentType(rawValue: seg.seg_type.rawValue) ?? .moveTo
+        self.type = SegmentType(rawValue: UInt32(seg.seg_type.rawValue)) ?? .moveTo
         self.x = seg.x
         self.y = seg.y
         self.x1 = seg.x1
@@ -154,7 +154,7 @@ public struct Fill: @unchecked Sendable {
 
     /// The type of paint used for this fill.
     public var paintType: PaintType {
-        PaintType(rawValue: resvg_fill_paint_type(ptr).rawValue) ?? .color
+        PaintType(rawValue: UInt32(resvg_fill_paint_type(ptr).rawValue)) ?? .color
     }
 
     /// The solid color if paintType is .color.
@@ -169,7 +169,7 @@ public struct Fill: @unchecked Sendable {
 
     /// The fill rule.
     public var rule: FillRule {
-        FillRule(rawValue: resvg_fill_get_rule(ptr).rawValue) ?? .nonZero
+        FillRule(rawValue: UInt32(resvg_fill_get_rule(ptr).rawValue)) ?? .nonZero
     }
 
     /// The linear gradient if paintType is .linearGradient.
@@ -209,7 +209,7 @@ public struct Stroke: @unchecked Sendable {
 
     /// The type of paint used for this stroke.
     public var paintType: PaintType {
-        PaintType(rawValue: resvg_stroke_paint_type(ptr).rawValue) ?? .color
+        PaintType(rawValue: UInt32(resvg_stroke_paint_type(ptr).rawValue)) ?? .color
     }
 
     /// The solid color if paintType is .color.
@@ -229,12 +229,12 @@ public struct Stroke: @unchecked Sendable {
 
     /// The line cap style.
     public var lineCap: LineCap {
-        LineCap(rawValue: resvg_stroke_linecap(ptr).rawValue) ?? .butt
+        LineCap(rawValue: UInt32(resvg_stroke_linecap(ptr).rawValue)) ?? .butt
     }
 
     /// The line join style.
     public var lineJoin: LineJoin {
-        LineJoin(rawValue: resvg_stroke_linejoin(ptr).rawValue) ?? .miter
+        LineJoin(rawValue: UInt32(resvg_stroke_linejoin(ptr).rawValue)) ?? .miter
     }
 
     /// The miter limit.
