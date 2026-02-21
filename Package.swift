@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
@@ -18,7 +18,13 @@ let package = Package(
         .target(
             name: "Resvg",
             dependencies: ["CResvg"],
-            path: "Sources/Resvg"
+            path: "Sources/Resvg",
+            linkerSettings: [
+                // Windows system libraries required by Rust std
+                .linkedLibrary("Ws2_32", .when(platforms: [.windows])),
+                .linkedLibrary("Userenv", .when(platforms: [.windows])),
+                .linkedLibrary("ntdll", .when(platforms: [.windows])),
+            ]
         ),
     ]
 )
