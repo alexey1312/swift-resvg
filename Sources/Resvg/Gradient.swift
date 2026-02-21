@@ -49,7 +49,7 @@ public struct LinearGradient: @unchecked Sendable {
 
     /// The spread method.
     public var spreadMethod: SpreadMethod {
-        SpreadMethod(rawValue: resvg_linear_gradient_spread_method(ptr).rawValue) ?? .pad
+        SpreadMethod(rawValue: UInt32(resvg_linear_gradient_spread_method(ptr).rawValue)) ?? .pad
     }
 
     /// The number of gradient stops.
@@ -135,7 +135,7 @@ public struct RadialGradient: @unchecked Sendable {
 
     /// The spread method.
     public var spreadMethod: SpreadMethod {
-        SpreadMethod(rawValue: resvg_radial_gradient_spread_method(ptr).rawValue) ?? .pad
+        SpreadMethod(rawValue: UInt32(resvg_radial_gradient_spread_method(ptr).rawValue)) ?? .pad
     }
 
     /// The number of gradient stops.

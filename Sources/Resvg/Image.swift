@@ -46,7 +46,7 @@ public struct ImageNode: @unchecked Sendable {
 
     /// The type of image data.
     public var kind: ImageKind {
-        ImageKind(rawValue: resvg_image_get_kind(ptr).rawValue) ?? .jpeg
+        ImageKind(rawValue: UInt32(resvg_image_get_kind(ptr).rawValue)) ?? .jpeg
     }
 }
 

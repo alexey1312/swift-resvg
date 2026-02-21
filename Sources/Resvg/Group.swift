@@ -19,7 +19,7 @@ public struct TreeNode: @unchecked Sendable {
     /// The type of this node.
     public var nodeType: NodeType {
         let type = resvg_node_get_type(OpaquePointer(ptr))
-        return NodeType(rawValue: type.rawValue) ?? .group
+        return NodeType(rawValue: UInt32(type.rawValue)) ?? .group
     }
 
     /// Cast to Group if this is a group node.
@@ -95,7 +95,7 @@ public struct Group: @unchecked Sendable {
 
     /// The blend mode of this group.
     public var blendMode: BlendMode {
-        BlendMode(rawValue: resvg_group_blend_mode(ptr).rawValue) ?? .normal
+        BlendMode(rawValue: UInt32(resvg_group_blend_mode(ptr).rawValue)) ?? .normal
     }
 
     /// Whether this group has a mask.
@@ -207,7 +207,7 @@ public struct Mask: @unchecked Sendable {
 
     /// The mask type (luminance or alpha).
     public var kind: MaskType {
-        MaskType(rawValue: resvg_mask_kind(ptr).rawValue) ?? .luminance
+        MaskType(rawValue: UInt32(resvg_mask_kind(ptr).rawValue)) ?? .luminance
     }
 
     /// The root group containing the mask content.
