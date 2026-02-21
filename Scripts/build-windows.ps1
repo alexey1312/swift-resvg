@@ -1,74 +1,46 @@
-#!/bin/bash
-# Build resvg static libraries for all platforms and create artifact bundle
+# Build resvg static libraries for Windows (x86_64 + aarch64 MSVC)
 #
 # Usage:
-#   ./Scripts/build.sh                    # Build current version (0.45.1)
-#   ./Scripts/build.sh 0.46.0             # Build specific version
-#   ./Scripts/build.sh 0.46.0 --linux     # Build Linux only (in container)
-#   ./Scripts/build.sh 0.46.0 --macos     # Build macOS only
+#   .\Scripts\build-windows.ps1                  # Build current version (0.45.1)
+#   .\Scripts\build-windows.ps1 -ResvgVersion 0.46.0  # Build specific version
 #
 # Requirements:
-#   macOS: Rust toolchain (rustup target add aarch64-apple-darwin x86_64-apple-darwin)
-#   Linux: Docker (for cross-compilation)
+#   - Rust toolchain with targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
 #
 # Outputs:
-#   resvg.artifactbundle/
-#   ├── info.json
-#   ├── include/resvg.h
-#   ├── include/module.modulemap
-#   ├── macos-universal/libresvg.a
-#   ├── linux-x86_64/libresvg.a
-#   └── linux-aarch64/libresvg.a
+#   resvg.artifactbundle/windows-x86_64/resvg.lib
+#   resvg.artifactbundle/windows-aarch64/resvg.lib
 
-set -euo pipefail
+param(
+    [string]$ResvgVersion = "0.45.1"
+)
 
-# Cross-platform sed in-place (macOS uses -i '', Linux uses -i)
-sedi() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "$@"
-    else
-        sed -i "$@"
-    fi
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
+$BuildDir = Join-Path $ProjectRoot ".resvg-build"
+$BundleDir = Join-Path $ProjectRoot "resvg.artifactbundle"
+
+Write-Host "=== Building resvg $ResvgVersion for Windows ==="
+
+# Clean and clone resvg
+if (Test-Path $BuildDir) {
+    Remove-Item -Recurse -Force $BuildDir
 }
+New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
-RESVG_VERSION="${1:-0.45.1}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/.resvg-build"
-BUNDLE_DIR="$PROJECT_ROOT/resvg.artifactbundle"
-
-# Parse optional flags
-BUILD_LINUX=true
-BUILD_MACOS=true
-if [[ "${2:-}" == "--linux" ]]; then
-    BUILD_MACOS=false
-elif [[ "${2:-}" == "--macos" ]]; then
-    BUILD_LINUX=false
-fi
-
-echo "=== Building resvg $RESVG_VERSION artifact bundle ==="
-
-# Clean and clone resvg (use sudo on CI for Docker-created files)
-if [ -d "$BUILD_DIR" ]; then
-    if command -v sudo &> /dev/null && [ -n "${CI:-}" ]; then
-        sudo rm -rf "$BUILD_DIR"
-    else
-        rm -rf "$BUILD_DIR"
-    fi
-fi
-mkdir -p "$BUILD_DIR"
-echo "Cloning resvg v$RESVG_VERSION..."
-git clone --depth 1 --branch "v$RESVG_VERSION" \
-    https://github.com/RazrFalcon/resvg.git "$BUILD_DIR/resvg"
+Write-Host "Cloning resvg v$ResvgVersion..."
+git clone --depth 1 --branch "v$ResvgVersion" `
+    https://github.com/RazrFalcon/resvg.git "$BuildDir\resvg"
 
 #######################################
 # Apply patch: Add SVG export functions
 #######################################
-echo ""
-echo "=== Applying SVG export patch ==="
+Write-Host ""
+Write-Host "=== Applying SVG export patch ==="
 
-# Add new functions to lib.rs
-cat >> "$BUILD_DIR/resvg/crates/c-api/lib.rs" << 'RUST_PATCH'
+$RustPatch = @'
 
 // =============================================================================
 // SVG Export Functions (added by swift-resvg)
@@ -1374,674 +1346,51 @@ pub extern "C" fn resvg_text_flattened(text: *const usvg::Text) -> *const usvg::
     let text = unsafe { &*text };
     text.flattened() as *const usvg::Group
 }
-RUST_PATCH
+'@
 
-echo "Rust patch applied successfully"
+$LibRsPath = Join-Path $BuildDir "resvg\crates\c-api\lib.rs"
+Add-Content -Path $LibRsPath -Value $RustPatch -Encoding UTF8
 
-# Create artifact bundle structure
-mkdir -p "$BUNDLE_DIR/include"
-mkdir -p "$BUNDLE_DIR/macos-universal"
-mkdir -p "$BUNDLE_DIR/linux-x86_64"
-mkdir -p "$BUNDLE_DIR/linux-aarch64"
-mkdir -p "$BUNDLE_DIR/windows-x86_64"
-mkdir -p "$BUNDLE_DIR/windows-aarch64"
-
-# Copy header
-cp "$BUILD_DIR/resvg/crates/c-api/resvg.h" "$BUNDLE_DIR/include/"
-
-# Patch header with SVG export and tree traversal function declarations
-cat >> "$BUNDLE_DIR/include/resvg.h.tmp" << 'HEADER_PATCH'
-
-/**
- * @brief Exports the parsed tree back to normalized SVG string.
- *
- * The SVG is normalized by usvg with all defaults applied:
- * - Missing fill defaults to black
- * - CSS styles are resolved
- * - `<use>` references are expanded
- * - clip-path elements are resolved
- *
- * @param tree Render tree.
- * @param len Output: length of the returned string (excluding null terminator).
- * @return Normalized SVG string. NULL on error. Must be freed via resvg_svg_string_destroy.
- */
-char* resvg_tree_to_svg(const resvg_render_tree *tree, uintptr_t *len);
-
-/**
- * @brief Frees SVG string allocated by resvg_tree_to_svg.
- */
-void resvg_svg_string_destroy(char *svg);
-
-// =============================================================================
-// Tree Traversal API
-// =============================================================================
-
-// -----------------------------------------------------------------------------
-// Type Definitions
-// -----------------------------------------------------------------------------
-
-/** Node type enumeration */
-typedef enum {
-    RESVG_NODE_GROUP = 0,
-    RESVG_NODE_PATH = 1,
-    RESVG_NODE_IMAGE = 2,
-    RESVG_NODE_TEXT = 3,
-} resvg_node_type;
-
-/** Mask type enumeration */
-typedef enum {
-    RESVG_MASK_LUMINANCE = 0,
-    RESVG_MASK_ALPHA = 1,
-} resvg_mask_type;
-
-/** Paint type enumeration */
-typedef enum {
-    RESVG_PAINT_COLOR = 0,
-    RESVG_PAINT_LINEAR_GRADIENT = 1,
-    RESVG_PAINT_RADIAL_GRADIENT = 2,
-    RESVG_PAINT_PATTERN = 3,
-} resvg_paint_type;
-
-/** Fill rule enumeration */
-typedef enum {
-    RESVG_FILL_NONZERO = 0,
-    RESVG_FILL_EVENODD = 1,
-} resvg_fill_rule;
-
-/** Line cap enumeration */
-typedef enum {
-    RESVG_LINECAP_BUTT = 0,
-    RESVG_LINECAP_ROUND = 1,
-    RESVG_LINECAP_SQUARE = 2,
-} resvg_linecap;
-
-/** Line join enumeration */
-typedef enum {
-    RESVG_LINEJOIN_MITER = 0,
-    RESVG_LINEJOIN_ROUND = 1,
-    RESVG_LINEJOIN_BEVEL = 2,
-    RESVG_LINEJOIN_MITER_CLIP = 3,
-} resvg_linejoin;
-
-/** Path segment type enumeration */
-typedef enum {
-    RESVG_PATH_SEG_MOVE_TO = 0,
-    RESVG_PATH_SEG_LINE_TO = 1,
-    RESVG_PATH_SEG_QUAD_TO = 2,
-    RESVG_PATH_SEG_CUBIC_TO = 3,
-    RESVG_PATH_SEG_CLOSE = 4,
-} resvg_path_segment_type;
-
-/** Blend mode enumeration */
-typedef enum {
-    RESVG_BLEND_NORMAL = 0,
-    RESVG_BLEND_MULTIPLY = 1,
-    RESVG_BLEND_SCREEN = 2,
-    RESVG_BLEND_OVERLAY = 3,
-    RESVG_BLEND_DARKEN = 4,
-    RESVG_BLEND_LIGHTEN = 5,
-    RESVG_BLEND_COLOR_DODGE = 6,
-    RESVG_BLEND_COLOR_BURN = 7,
-    RESVG_BLEND_HARD_LIGHT = 8,
-    RESVG_BLEND_SOFT_LIGHT = 9,
-    RESVG_BLEND_DIFFERENCE = 10,
-    RESVG_BLEND_EXCLUSION = 11,
-    RESVG_BLEND_HUE = 12,
-    RESVG_BLEND_SATURATION = 13,
-    RESVG_BLEND_COLOR = 14,
-    RESVG_BLEND_LUMINOSITY = 15,
-} resvg_blend_mode;
-
-/** Spread method enumeration */
-typedef enum {
-    RESVG_SPREAD_PAD = 0,
-    RESVG_SPREAD_REFLECT = 1,
-    RESVG_SPREAD_REPEAT = 2,
-} resvg_spread_method;
-
-/** Image kind enumeration */
-typedef enum {
-    RESVG_IMAGE_JPEG = 0,
-    RESVG_IMAGE_PNG = 1,
-    RESVG_IMAGE_GIF = 2,
-    RESVG_IMAGE_SVG = 3,
-} resvg_image_kind;
-
-/** RGBA color */
-typedef struct {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
-} resvg_color;
-
-/** Gradient stop */
-typedef struct {
-    float offset;
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
-} resvg_gradient_stop;
-
-/** Path segment */
-typedef struct {
-    resvg_path_segment_type seg_type;
-    float x;
-    float y;
-    float x1;
-    float y1;
-    float x2;
-    float y2;
-} resvg_path_segment;
-
-/** Opaque group pointer (borrow from tree, do NOT free) */
-typedef struct resvg_group resvg_group;
-
-/** Opaque node pointer (borrow from tree, do NOT free) */
-typedef struct resvg_node resvg_node;
-
-/** Opaque path pointer (borrow from tree, do NOT free) */
-typedef struct resvg_path resvg_path;
-
-/** Opaque image pointer (borrow from tree, do NOT free) */
-typedef struct resvg_image resvg_image;
-
-/** Opaque text pointer (borrow from tree, do NOT free) */
-typedef struct resvg_text resvg_text;
-
-/** Opaque mask pointer (borrow from tree, do NOT free) */
-typedef struct resvg_mask resvg_mask;
-
-/** Opaque clip path pointer (borrow from tree, do NOT free) */
-typedef struct resvg_clip_path resvg_clip_path;
-
-/** Opaque fill pointer (borrow from tree, do NOT free) */
-typedef struct resvg_fill resvg_fill;
-
-/** Opaque stroke pointer (borrow from tree, do NOT free) */
-typedef struct resvg_stroke resvg_stroke;
-
-/** Opaque linear gradient pointer (borrow from tree, do NOT free) */
-typedef struct resvg_linear_gradient resvg_linear_gradient;
-
-/** Opaque radial gradient pointer (borrow from tree, do NOT free) */
-typedef struct resvg_radial_gradient resvg_radial_gradient;
-
-// -----------------------------------------------------------------------------
-// Core Tree Traversal
-// -----------------------------------------------------------------------------
-
-/** Returns the root group of the render tree. Valid as long as tree is alive. */
-const resvg_group* resvg_tree_root(const resvg_render_tree *tree);
-
-/** Returns the number of children in a group. */
-uintptr_t resvg_group_children_count(const resvg_group *group);
-
-/** Returns a child node at the given index. NULL if out of bounds. */
-const resvg_node* resvg_group_child_at(const resvg_group *group, uintptr_t index);
-
-/** Returns the type of a node. */
-resvg_node_type resvg_node_get_type(const resvg_node *node);
-
-/** Casts a node to a group. Returns NULL if not a group. */
-const resvg_group* resvg_node_as_group(const resvg_node *node);
-
-/** Casts a node to a path. Returns NULL if not a path. */
-const resvg_path* resvg_node_as_path(const resvg_node *node);
-
-/** Casts a node to an image. Returns NULL if not an image. */
-const resvg_image* resvg_node_as_image(const resvg_node *node);
-
-/** Casts a node to text. Returns NULL if not text. */
-const resvg_text* resvg_node_as_text(const resvg_node *node);
-
-// -----------------------------------------------------------------------------
-// Group Properties
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of a group. Length stored in len. */
-const char* resvg_group_id(const resvg_group *group, uintptr_t *len);
-
-/** Returns the relative transform of a group. */
-resvg_transform resvg_group_transform(const resvg_group *group);
-
-/** Returns the absolute transform of a group. */
-resvg_transform resvg_group_abs_transform(const resvg_group *group);
-
-/** Returns the opacity of a group. */
-float resvg_group_opacity(const resvg_group *group);
-
-/** Returns the blend mode of a group. */
-resvg_blend_mode resvg_group_blend_mode(const resvg_group *group);
-
-/** Returns true if the group has a mask. */
-bool resvg_group_has_mask(const resvg_group *group);
-
-/** Returns true if the group has a clip path. */
-bool resvg_group_has_clip_path(const resvg_group *group);
-
-/** Returns true if the group is isolated. */
-bool resvg_group_isolate(const resvg_group *group);
-
-// -----------------------------------------------------------------------------
-// Mask Access
-// -----------------------------------------------------------------------------
-
-/** Returns the mask of a group. NULL if no mask. */
-const resvg_mask* resvg_group_mask(const resvg_group *group);
-
-/** Returns the ID of a mask. */
-const char* resvg_mask_id(const resvg_mask *mask, uintptr_t *len);
-
-/** Returns the bounding rect of a mask. */
-resvg_rect resvg_mask_rect(const resvg_mask *mask);
-
-/** Returns the type of a mask (luminance or alpha). */
-resvg_mask_type resvg_mask_kind(const resvg_mask *mask);
-
-/** Returns the root group of a mask's content. */
-const resvg_group* resvg_mask_root(const resvg_mask *mask);
-
-/** Returns the nested mask. NULL if none. */
-const resvg_mask* resvg_mask_mask(const resvg_mask *mask);
-
-// -----------------------------------------------------------------------------
-// Clip Path Access
-// -----------------------------------------------------------------------------
-
-/** Returns the clip path of a group. NULL if no clip path. */
-const resvg_clip_path* resvg_group_clip_path(const resvg_group *group);
-
-/** Returns the ID of a clip path. */
-const char* resvg_clip_path_id(const resvg_clip_path *clip, uintptr_t *len);
-
-/** Returns the transform of a clip path. */
-resvg_transform resvg_clip_path_transform(const resvg_clip_path *clip);
-
-/** Returns the root group of a clip path's content. */
-const resvg_group* resvg_clip_path_root(const resvg_clip_path *clip);
-
-// -----------------------------------------------------------------------------
-// Path Properties
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of a path. */
-const char* resvg_path_id(const resvg_path *path, uintptr_t *len);
-
-/** Returns the relative transform of a path. */
-resvg_transform resvg_path_transform(const resvg_path *path);
-
-/** Returns the absolute transform of a path. */
-resvg_transform resvg_path_abs_transform(const resvg_path *path);
-
-/** Returns true if the path is visible. */
-bool resvg_path_is_visible(const resvg_path *path);
-
-/** Returns the number of segments in a path's data. */
-uintptr_t resvg_path_data_len(const resvg_path *path);
-
-/** Returns a path segment at the given index. Returns false if out of bounds. */
-bool resvg_path_data_segment(const resvg_path *path, uintptr_t index, resvg_path_segment *segment);
-
-/** Returns true if the path has a fill. */
-bool resvg_path_has_fill(const resvg_path *path);
-
-/** Returns true if the path has a stroke. */
-bool resvg_path_has_stroke(const resvg_path *path);
-
-/** Returns the fill of a path. NULL if no fill. */
-const resvg_fill* resvg_path_fill(const resvg_path *path);
-
-/** Returns the stroke of a path. NULL if no stroke. */
-const resvg_stroke* resvg_path_stroke(const resvg_path *path);
-
-// -----------------------------------------------------------------------------
-// Fill Properties
-// -----------------------------------------------------------------------------
-
-/** Returns the paint type of a fill. */
-resvg_paint_type resvg_fill_paint_type(const resvg_fill *fill);
-
-/** Returns the color of a fill (if solid). */
-resvg_color resvg_fill_color(const resvg_fill *fill);
-
-/** Returns the opacity of a fill. */
-float resvg_fill_opacity(const resvg_fill *fill);
-
-/** Returns the fill rule. */
-resvg_fill_rule resvg_fill_get_rule(const resvg_fill *fill);
-
-/** Returns the linear gradient. NULL if not a linear gradient. */
-const resvg_linear_gradient* resvg_fill_linear_gradient(const resvg_fill *fill);
-
-/** Returns the radial gradient. NULL if not a radial gradient. */
-const resvg_radial_gradient* resvg_fill_radial_gradient(const resvg_fill *fill);
-
-// -----------------------------------------------------------------------------
-// Stroke Properties
-// -----------------------------------------------------------------------------
-
-/** Returns the paint type of a stroke. */
-resvg_paint_type resvg_stroke_paint_type(const resvg_stroke *stroke);
-
-/** Returns the color of a stroke (if solid). */
-resvg_color resvg_stroke_color(const resvg_stroke *stroke);
-
-/** Returns the opacity of a stroke. */
-float resvg_stroke_opacity(const resvg_stroke *stroke);
-
-/** Returns the width of a stroke. */
-float resvg_stroke_width(const resvg_stroke *stroke);
-
-/** Returns the line cap of a stroke. */
-resvg_linecap resvg_stroke_linecap(const resvg_stroke *stroke);
-
-/** Returns the line join of a stroke. */
-resvg_linejoin resvg_stroke_linejoin(const resvg_stroke *stroke);
-
-/** Returns the miter limit of a stroke. */
-float resvg_stroke_miter_limit(const resvg_stroke *stroke);
-
-/** Returns the number of dash values. */
-uintptr_t resvg_stroke_dasharray_len(const resvg_stroke *stroke);
-
-/** Returns a dash value at the given index. */
-float resvg_stroke_dasharray_at(const resvg_stroke *stroke, uintptr_t index);
-
-/** Returns the dash offset of a stroke. */
-float resvg_stroke_dashoffset(const resvg_stroke *stroke);
-
-/** Returns the linear gradient. NULL if not a linear gradient. */
-const resvg_linear_gradient* resvg_stroke_linear_gradient(const resvg_stroke *stroke);
-
-/** Returns the radial gradient. NULL if not a radial gradient. */
-const resvg_radial_gradient* resvg_stroke_radial_gradient(const resvg_stroke *stroke);
-
-// -----------------------------------------------------------------------------
-// Linear Gradient
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of a linear gradient. */
-const char* resvg_linear_gradient_id(const resvg_linear_gradient *lg, uintptr_t *len);
-
-/** Returns the x1 coordinate. */
-float resvg_linear_gradient_x1(const resvg_linear_gradient *lg);
-
-/** Returns the y1 coordinate. */
-float resvg_linear_gradient_y1(const resvg_linear_gradient *lg);
-
-/** Returns the x2 coordinate. */
-float resvg_linear_gradient_x2(const resvg_linear_gradient *lg);
-
-/** Returns the y2 coordinate. */
-float resvg_linear_gradient_y2(const resvg_linear_gradient *lg);
-
-/** Returns the transform of a linear gradient. */
-resvg_transform resvg_linear_gradient_transform(const resvg_linear_gradient *lg);
-
-/** Returns the spread method. */
-resvg_spread_method resvg_linear_gradient_spread_method(const resvg_linear_gradient *lg);
-
-/** Returns the number of stops. */
-uintptr_t resvg_linear_gradient_stops_count(const resvg_linear_gradient *lg);
-
-/** Returns a stop at the given index. Returns false if out of bounds. */
-bool resvg_linear_gradient_stop_at(const resvg_linear_gradient *lg, uintptr_t index, resvg_gradient_stop *stop);
-
-// -----------------------------------------------------------------------------
-// Radial Gradient
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of a radial gradient. */
-const char* resvg_radial_gradient_id(const resvg_radial_gradient *rg, uintptr_t *len);
-
-/** Returns the cx coordinate. */
-float resvg_radial_gradient_cx(const resvg_radial_gradient *rg);
-
-/** Returns the cy coordinate. */
-float resvg_radial_gradient_cy(const resvg_radial_gradient *rg);
-
-/** Returns the radius. */
-float resvg_radial_gradient_r(const resvg_radial_gradient *rg);
-
-/** Returns the fx coordinate. */
-float resvg_radial_gradient_fx(const resvg_radial_gradient *rg);
-
-/** Returns the fy coordinate. */
-float resvg_radial_gradient_fy(const resvg_radial_gradient *rg);
-
-/** Returns the transform of a radial gradient. */
-resvg_transform resvg_radial_gradient_transform(const resvg_radial_gradient *rg);
-
-/** Returns the spread method. */
-resvg_spread_method resvg_radial_gradient_spread_method(const resvg_radial_gradient *rg);
-
-/** Returns the number of stops. */
-uintptr_t resvg_radial_gradient_stops_count(const resvg_radial_gradient *rg);
-
-/** Returns a stop at the given index. Returns false if out of bounds. */
-bool resvg_radial_gradient_stop_at(const resvg_radial_gradient *rg, uintptr_t index, resvg_gradient_stop *stop);
-
-// -----------------------------------------------------------------------------
-// Image Node
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of an image. */
-const char* resvg_image_id(const resvg_image *image, uintptr_t *len);
-
-/** Returns the transform of an image. */
-resvg_transform resvg_image_transform(const resvg_image *image);
-
-/** Returns the absolute transform of an image. */
-resvg_transform resvg_image_abs_transform(const resvg_image *image);
-
-/** Returns true if the image is visible. */
-bool resvg_image_is_visible(const resvg_image *image);
-
-/** Returns the size of an image. */
-resvg_size resvg_image_size(const resvg_image *image);
-
-/** Returns the kind of an image (JPEG, PNG, GIF, or SVG). */
-resvg_image_kind resvg_image_get_kind(const resvg_image *image);
-
-// -----------------------------------------------------------------------------
-// Text Node
-// -----------------------------------------------------------------------------
-
-/** Returns the ID of a text node. */
-const char* resvg_text_id(const resvg_text *text, uintptr_t *len);
-
-/** Returns the transform of a text node. */
-resvg_transform resvg_text_transform(const resvg_text *text);
-
-/** Returns the absolute transform of a text node. */
-resvg_transform resvg_text_abs_transform(const resvg_text *text);
-
-/** Returns the bounding box of a text node. */
-resvg_rect resvg_text_bounding_box(const resvg_text *text);
-
-/** Returns the flattened paths of a text node as a group. */
-const resvg_group* resvg_text_flattened(const resvg_text *text);
-
-HEADER_PATCH
-
-# Append the new declarations
-cat "$BUNDLE_DIR/include/resvg.h.tmp" >> "$BUNDLE_DIR/include/resvg.h"
-rm "$BUNDLE_DIR/include/resvg.h.tmp"
-# Remove all ending markers (will add them back correctly)
-sedi '/^#ifdef __cplusplus$/d' "$BUNDLE_DIR/include/resvg.h"
-sedi '/^} \/\/ extern "C"$/d' "$BUNDLE_DIR/include/resvg.h"
-sedi '/#endif \/\/ __cplusplus/d' "$BUNDLE_DIR/include/resvg.h"
-sedi '/#endif \/\* RESVG_H \*\//d' "$BUNDLE_DIR/include/resvg.h"
-# Fix opening extern "C" to have proper C++ guard
-sedi 's/^extern "C" {$/#ifdef __cplusplus\nextern "C" {\n#endif/' "$BUNDLE_DIR/include/resvg.h"
-# Add proper closing markers
-echo "" >> "$BUNDLE_DIR/include/resvg.h"
-echo "#ifdef __cplusplus" >> "$BUNDLE_DIR/include/resvg.h"
-echo "} // extern \"C\"" >> "$BUNDLE_DIR/include/resvg.h"
-echo "#endif" >> "$BUNDLE_DIR/include/resvg.h"
-echo "" >> "$BUNDLE_DIR/include/resvg.h"
-echo "#endif /* RESVG_H */" >> "$BUNDLE_DIR/include/resvg.h"
-
-# Create module map
-cat > "$BUNDLE_DIR/include/module.modulemap" << 'EOF'
-module CResvg {
-    header "resvg.h"
-    link "resvg"
-    export *
-}
-EOF
+Write-Host "Rust patch applied successfully"
 
 #######################################
-# macOS Build (Universal Binary)
+# Build Windows targets
 #######################################
-if $BUILD_MACOS; then
-    echo ""
-    echo "=== Building macOS universal binary ==="
 
-    # Ensure Rust targets are installed
-    rustup target add aarch64-apple-darwin x86_64-apple-darwin 2>/dev/null || true
+# Set static CRT linkage
+$env:RUSTFLAGS = "-C target-feature=+crt-static"
 
-    cd "$BUILD_DIR/resvg/crates/c-api"
+# Create output directories
+New-Item -ItemType Directory -Path (Join-Path $BundleDir "windows-x86_64") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $BundleDir "windows-aarch64") -Force | Out-Null
 
-    echo "Building for arm64..."
-    cargo build --release --target aarch64-apple-darwin
+$CApiDir = Join-Path $BuildDir "resvg\crates\c-api"
 
-    echo "Building for x86_64..."
-    cargo build --release --target x86_64-apple-darwin
+Write-Host ""
+Write-Host "=== Building for x86_64-pc-windows-msvc ==="
+Push-Location $CApiDir
+cargo build --release --target x86_64-pc-windows-msvc
+Pop-Location
 
-    echo "Creating universal static library..."
-    lipo -create \
-        "$BUILD_DIR/resvg/target/aarch64-apple-darwin/release/libresvg.a" \
-        "$BUILD_DIR/resvg/target/x86_64-apple-darwin/release/libresvg.a" \
-        -output "$BUNDLE_DIR/macos-universal/libresvg.a"
+$X64Lib = Join-Path $BuildDir "resvg\target\x86_64-pc-windows-msvc\release\resvg.lib"
+Copy-Item $X64Lib -Destination (Join-Path $BundleDir "windows-x86_64\resvg.lib")
+Write-Host "x86_64 library: $((Get-Item (Join-Path $BundleDir 'windows-x86_64\resvg.lib')).Length / 1MB) MB"
 
-    echo "macOS library: $(file "$BUNDLE_DIR/macos-universal/libresvg.a")"
-fi
+Write-Host ""
+Write-Host "=== Building for aarch64-pc-windows-msvc ==="
+Push-Location $CApiDir
+cargo build --release --target aarch64-pc-windows-msvc
+Pop-Location
 
-#######################################
-# Linux Build (using Docker)
-#######################################
-if $BUILD_LINUX; then
-    echo ""
-    echo "=== Building Linux libraries (via Docker) ==="
+$Arm64Lib = Join-Path $BuildDir "resvg\target\aarch64-pc-windows-msvc\release\resvg.lib"
+Copy-Item $Arm64Lib -Destination (Join-Path $BundleDir "windows-aarch64\resvg.lib")
+Write-Host "aarch64 library: $((Get-Item (Join-Path $BundleDir 'windows-aarch64\resvg.lib')).Length / 1MB) MB"
 
-    # Create simple Dockerfile for native builds
-    cat > "$BUILD_DIR/Dockerfile.linux" << 'DOCKERFILE'
-FROM rust:1.83-slim-bookworm
-WORKDIR /build
-DOCKERFILE
+# Clean up build directory
+Remove-Item -Recurse -Force $BuildDir
 
-    # Build x86_64 using platform emulation (more reliable than cross-compilation)
-    echo "Building for Linux x86_64..."
-    mkdir -p "$BUILD_DIR/target-x86_64"
-    docker build --platform linux/amd64 -t resvg-linux-amd64 -f "$BUILD_DIR/Dockerfile.linux" "$BUILD_DIR"
-    docker run --rm --platform linux/amd64 \
-        -v "$BUILD_DIR/resvg:/build" \
-        -v "$BUILD_DIR/target-x86_64:/build/target" \
-        resvg-linux-amd64 \
-        bash -c "cd crates/c-api && cargo build --release"
-
-    cp "$BUILD_DIR/target-x86_64/release/libresvg.a" \
-       "$BUNDLE_DIR/linux-x86_64/"
-
-    # Build aarch64 using platform emulation
-    echo "Building for Linux aarch64..."
-    mkdir -p "$BUILD_DIR/target-aarch64"
-    docker build --platform linux/arm64 -t resvg-linux-arm64 -f "$BUILD_DIR/Dockerfile.linux" "$BUILD_DIR"
-    docker run --rm --platform linux/arm64 \
-        -v "$BUILD_DIR/resvg:/build" \
-        -v "$BUILD_DIR/target-aarch64:/build/target" \
-        resvg-linux-arm64 \
-        bash -c "cd crates/c-api && cargo build --release"
-
-    cp "$BUILD_DIR/target-aarch64/release/libresvg.a" \
-       "$BUNDLE_DIR/linux-aarch64/"
-
-    echo "Linux x86_64 library: $(file "$BUNDLE_DIR/linux-x86_64/libresvg.a")"
-    echo "Linux aarch64 library: $(file "$BUNDLE_DIR/linux-aarch64/libresvg.a")"
-fi
-
-#######################################
-# Generate info.json
-#######################################
-echo ""
-echo "=== Generating artifact bundle manifest ==="
-
-cat > "$BUNDLE_DIR/info.json" << EOF
-{
-    "schemaVersion": "1.0",
-    "artifacts": {
-        "CResvg": {
-            "type": "staticLibrary",
-            "version": "$RESVG_VERSION",
-            "variants": [
-                {
-                    "path": "macos-universal/libresvg.a",
-                    "supportedTriples": [
-                        "arm64-apple-macosx",
-                        "x86_64-apple-macosx"
-                    ],
-                    "staticLibraryMetadata": {
-                        "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap",
-                        "linkedLibraries": ["iconv"]
-                    }
-                },
-                {
-                    "path": "linux-x86_64/libresvg.a",
-                    "supportedTriples": ["x86_64-unknown-linux-gnu"],
-                    "staticLibraryMetadata": {
-                        "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap"
-                    }
-                },
-                {
-                    "path": "linux-aarch64/libresvg.a",
-                    "supportedTriples": ["aarch64-unknown-linux-gnu"],
-                    "staticLibraryMetadata": {
-                        "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap"
-                    }
-                },
-                {
-                    "path": "windows-x86_64/resvg.lib",
-                    "supportedTriples": ["x86_64-unknown-windows-msvc"],
-                    "staticLibraryMetadata": {
-                        "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap",
-                        "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
-                    }
-                },
-                {
-                    "path": "windows-aarch64/resvg.lib",
-                    "supportedTriples": ["aarch64-unknown-windows-msvc"],
-                    "staticLibraryMetadata": {
-                        "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap",
-                        "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
-                    }
-                }
-            ]
-        }
-    }
-}
-EOF
-
-# Clean up build directory (use sudo on CI for Docker-created files)
-if command -v sudo &> /dev/null && [ -n "${CI:-}" ]; then
-    sudo rm -rf "$BUILD_DIR"
-else
-    rm -rf "$BUILD_DIR"
-fi
-
-echo ""
-echo "=== Done ==="
-echo "Artifact bundle created: $BUNDLE_DIR"
-echo ""
-echo "Contents:"
-find "$BUNDLE_DIR" -type f -exec ls -lh {} \;
-echo ""
-echo "Header version:"
-grep "RESVG_VERSION" "$BUNDLE_DIR/include/resvg.h" | head -1
+Write-Host ""
+Write-Host "=== Done ==="
+Write-Host "Windows libraries built successfully:"
+Write-Host "  $BundleDir\windows-x86_64\resvg.lib"
+Write-Host "  $BundleDir\windows-aarch64\resvg.lib"

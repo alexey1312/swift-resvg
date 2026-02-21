@@ -30,6 +30,18 @@ let package = Package(
                     ],
                     .when(platforms: [.linux])
                 ),
+                // Windows linker search path workaround (same as Linux)
+                .unsafeFlags(
+                    [
+                        "-L\(Context.packageDirectory)/resvg.artifactbundle/windows-x86_64",
+                        "-L\(Context.packageDirectory)/resvg.artifactbundle/windows-aarch64",
+                    ],
+                    .when(platforms: [.windows])
+                ),
+                // Windows system libraries required by Rust std
+                .linkedLibrary("Ws2_32", .when(platforms: [.windows])),
+                .linkedLibrary("Userenv", .when(platforms: [.windows])),
+                .linkedLibrary("ntdll", .when(platforms: [.windows])),
             ]
         ),
 
