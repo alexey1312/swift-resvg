@@ -19,6 +19,9 @@ swift test --filter TreeTraversalTests/createSvgTree
 ./Scripts/build.sh 0.45.1           # All platforms
 ./Scripts/build.sh 0.45.1 --macos   # macOS only
 ./Scripts/build.sh 0.45.1 --linux   # Linux only (via Docker)
+
+# Rebuild Windows libraries (requires Rust on Windows)
+# .\Scripts\build-windows.ps1 0.45.1
 ```
 
 ## Architecture
@@ -43,7 +46,7 @@ Swift bindings for [resvg](https://github.com/RazrFalcon/resvg) (Rust SVG render
 - `ImageNode` - Embedded images (JPEG, PNG, GIF, SVG)
 - `TextNode` - Text elements with `flattened` paths
 
-**Requirements:** Swift 6.2+ (for SE-0482), macOS 12.0+ or Linux (x86_64/aarch64)
+**Requirements:** Swift 6.2+ (for SE-0482), macOS 12.0+ or Linux (x86_64/aarch64) or Windows (x86_64/aarch64 MSVC)
 
 <!-- OPENSPEC:START -->
 ## OpenSpec Instructions

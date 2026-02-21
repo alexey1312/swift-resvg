@@ -93,12 +93,51 @@ jobs:
           name: include
           path: resvg.artifactbundle/include/
 
+  # Build Windows libraries on Windows runner
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    if: ${{ github.event.inputs.rebuild == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+
+      - name: Extract resvg version
+        shell: pwsh
+        run: |
+          $Version = "${{ github.event.inputs.version }}"
+          $ResvgVersion = ($Version -split '-swift\.')[0]
+          echo "RESVG_VERSION=$ResvgVersion" >> $env:GITHUB_ENV
+
+      - name: Build Windows libraries
+        shell: pwsh
+        run: .\Scripts\build-windows.ps1 -ResvgVersion $env:RESVG_VERSION
+
+      - name: Upload Windows x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: resvg.artifactbundle/windows-x86_64/resvg.lib
+
+      - name: Upload Windows aarch64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-aarch64
+          path: resvg.artifactbundle/windows-aarch64/resvg.lib
+
   # Create release (runs after builds or immediately if no rebuild)
   release:
     name: Create Release
     runs-on: macos-latest
-    needs: [build-macos, build-linux]
-    if: always() && (github.event.inputs.rebuild != 'true' || (needs.build-macos.result == 'success' && needs.build-linux.result == 'success'))
+    needs: [build-macos, build-linux, build-windows]
+    if: always() && (github.event.inputs.rebuild != 'true' || (needs.build-macos.result == 'success' && needs.build-linux.result == 'success' && needs.build-windows.result == 'success'))
     steps:
       - name: Checkout main
         uses: actions/checkout@v6
@@ -150,11 +189,38 @@ jobs:
           name: include
           path: resvg.artifactbundle/include/
 
+      - name: Download Windows x86_64 artifact
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x86_64
+          path: resvg.artifactbundle/windows-x86_64/
+
+      - name: Download Windows aarch64 artifact
+        if: ${{ github.event.inputs.rebuild == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-aarch64
+          path: resvg.artifactbundle/windows-aarch64/
+
       - name: Validate artifact bundle
         run: |
           echo "Validating artifact bundle..."
           for platform in macos-universal linux-x86_64 linux-aarch64; do
             lib="resvg.artifactbundle/$platform/libresvg.a"
+            if [ ! -f "$lib" ]; then
+              echo "ERROR: Missing $lib"
+              exit 1
+            fi
+            size=$(stat -f%z "$lib" 2>/dev/null || stat -c%s "$lib" 2>/dev/null || wc -c < "$lib")
+            if [ "$size" -lt 1000000 ]; then
+              echo "ERROR: $lib seems too small ($size bytes)"
+              exit 1
+            fi
+            echo "✓ $platform: $((size/1024/1024))MB"
+          done
+          for platform in windows-x86_64 windows-aarch64; do
+            lib="resvg.artifactbundle/$platform/resvg.lib"
             if [ ! -f "$lib" ]; then
               echo "ERROR: Missing $lib"
               exit 1
@@ -281,6 +347,8 @@ jobs:
             | macOS | arm64 + x86_64 (universal) | ~43 MB |
             | Linux | x86_64 | ~28 MB |
             | Linux | aarch64 | ~29 MB |
+            | Windows | x86_64 (MSVC) | ~28 MB |
+            | Windows | aarch64 (MSVC) | ~29 MB |
 
       - name: Update main branch
         run: |

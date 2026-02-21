@@ -29,6 +29,24 @@ jobs:
       - name: Test
         run: swift test -v
 
+  test-windows:
+    name: Swift 6.2 on Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: compnerd/gha-setup-swift@v0.2.3
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - run: swift build -v
+
+      - run: swift test -v
+
   test-linux:
     name: Swift 6.2 on Linux
     runs-on: ubuntu-latest
