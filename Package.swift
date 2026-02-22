@@ -38,6 +38,9 @@ let package = Package(
                     ],
                     .when(platforms: [.windows])
                 ),
+                // Windows: link libresvg.lib explicitly — SPM copies libresvg.lib from artifact bundle,
+                // but the modulemap omits `link "resvg"` to avoid duplicate flags
+                .linkedLibrary("libresvg", .when(platforms: [.windows])),
                 // Windows system libraries required by Rust std
                 .linkedLibrary("Ws2_32", .when(platforms: [.windows])),
                 .linkedLibrary("Userenv", .when(platforms: [.windows])),
