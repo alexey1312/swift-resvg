@@ -277,7 +277,7 @@ jobs:
           fi
           mv /tmp/resvg.artifactbundle.zip .
           mv /tmp/Resvg.xcframework.zip .
-          git checkout main -- Package.swift Sources/Resvg/
+          git checkout main -- Sources/Resvg/
 
       - name: Update Package.swift on release branch
         run: |
@@ -295,7 +295,7 @@ jobs:
         run: |
           git fetch origin release/xcframework || true
           git checkout release/xcframework 2>/dev/null || git checkout -b release/xcframework
-          git checkout main -- Package.swift Sources/Resvg/ Scripts/build-xcframework.sh
+          git checkout main -- Sources/Resvg/ Scripts/build-xcframework.sh
 
       - name: Update xcframework Package.swift
         run: |
