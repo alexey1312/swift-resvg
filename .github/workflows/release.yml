@@ -305,6 +305,7 @@ jobs:
 
       - name: Create and push tag
         run: |
+          git checkout release/artifact-bundle
           git tag "v${{ env.VERSION }}"
           git push origin "v${{ env.VERSION }}"
 
