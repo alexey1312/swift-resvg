@@ -34,20 +34,20 @@
                     }
                 },
                 {
-                    "path": "windows-x86_64/resvg.lib",
+                    "path": "windows-x86_64/libresvg.lib",
                     "supportedTriples": ["x86_64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap",
+                        "moduleMapPath": "include/module-windows.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 },
                 {
-                    "path": "windows-aarch64/resvg.lib",
+                    "path": "windows-aarch64/libresvg.lib",
                     "supportedTriples": ["aarch64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module.modulemap",
+                        "moduleMapPath": "include/module-windows.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 }

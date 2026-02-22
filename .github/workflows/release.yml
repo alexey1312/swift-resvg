@@ -124,13 +124,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
-          path: resvg.artifactbundle/windows-x86_64/resvg.lib
+          path: |
+            resvg.artifactbundle/windows-x86_64/libresvg.lib
+            resvg.artifactbundle/windows-x86_64/resvg.lib
 
       - name: Upload Windows aarch64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-aarch64
-          path: resvg.artifactbundle/windows-aarch64/resvg.lib
+          path: |
+            resvg.artifactbundle/windows-aarch64/libresvg.lib
+            resvg.artifactbundle/windows-aarch64/resvg.lib
 
   # Create release (runs after builds or immediately if no rebuild)
   release:
@@ -220,17 +224,19 @@ jobs:
             echo "✓ $platform: $((size/1024/1024))MB"
           done
           for platform in windows-x86_64 windows-aarch64; do
-            lib="resvg.artifactbundle/$platform/resvg.lib"
-            if [ ! -f "$lib" ]; then
-              echo "ERROR: Missing $lib"
-              exit 1
-            fi
-            size=$(stat -f%z "$lib" 2>/dev/null || stat -c%s "$lib" 2>/dev/null || wc -c < "$lib")
-            if [ "$size" -lt 1000000 ]; then
-              echo "ERROR: $lib seems too small ($size bytes)"
-              exit 1
-            fi
-            echo "✓ $platform: $((size/1024/1024))MB"
+            for libname in libresvg.lib resvg.lib; do
+              lib="resvg.artifactbundle/$platform/$libname"
+              if [ ! -f "$lib" ]; then
+                echo "ERROR: Missing $lib"
+                exit 1
+              fi
+              size=$(stat -f%z "$lib" 2>/dev/null || stat -c%s "$lib" 2>/dev/null || wc -c < "$lib")
+              if [ "$size" -lt 1000000 ]; then
+                echo "ERROR: $lib seems too small ($size bytes)"
+                exit 1
+              fi
+              echo "✓ $platform/$libname: $((size/1024/1024))MB"
+            done
           done
           echo "Artifact bundle validated successfully"
 
