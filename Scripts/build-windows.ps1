@@ -8,8 +8,8 @@
 #   - Rust toolchain with targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
 #
 # Outputs:
-#   resvg.artifactbundle/windows-x86_64/libresvg.lib
-#   resvg.artifactbundle/windows-aarch64/libresvg.lib
+#   resvg.artifactbundle/windows-x86_64/resvg.lib
+#   resvg.artifactbundle/windows-aarch64/resvg.lib
 
 param(
     [string]$ResvgVersion = "0.45.1"
@@ -1373,8 +1373,8 @@ cargo build --release --target x86_64-pc-windows-msvc
 Pop-Location
 
 $X64Lib = Join-Path $BuildDir "resvg\target\x86_64-pc-windows-msvc\release\resvg.lib"
-Copy-Item $X64Lib -Destination (Join-Path $BundleDir "windows-x86_64\libresvg.lib")
-Write-Host "x86_64 library: $((Get-Item (Join-Path $BundleDir 'windows-x86_64\libresvg.lib')).Length / 1MB) MB"
+Copy-Item $X64Lib -Destination (Join-Path $BundleDir "windows-x86_64\resvg.lib")
+Write-Host "x86_64 library: $((Get-Item (Join-Path $BundleDir 'windows-x86_64\resvg.lib')).Length / 1MB) MB"
 
 Write-Host ""
 Write-Host "=== Building for aarch64-pc-windows-msvc ==="
@@ -1383,8 +1383,8 @@ cargo build --release --target aarch64-pc-windows-msvc
 Pop-Location
 
 $Arm64Lib = Join-Path $BuildDir "resvg\target\aarch64-pc-windows-msvc\release\resvg.lib"
-Copy-Item $Arm64Lib -Destination (Join-Path $BundleDir "windows-aarch64\libresvg.lib")
-Write-Host "aarch64 library: $((Get-Item (Join-Path $BundleDir 'windows-aarch64\libresvg.lib')).Length / 1MB) MB"
+Copy-Item $Arm64Lib -Destination (Join-Path $BundleDir "windows-aarch64\resvg.lib")
+Write-Host "aarch64 library: $((Get-Item (Join-Path $BundleDir 'windows-aarch64\resvg.lib')).Length / 1MB) MB"
 
 # Clean up build directory
 Remove-Item -Recurse -Force $BuildDir
@@ -1392,5 +1392,5 @@ Remove-Item -Recurse -Force $BuildDir
 Write-Host ""
 Write-Host "=== Done ==="
 Write-Host "Windows libraries built successfully:"
-Write-Host "  $BundleDir\windows-x86_64\libresvg.lib"
-Write-Host "  $BundleDir\windows-aarch64\libresvg.lib"
+Write-Host "  $BundleDir\windows-x86_64\resvg.lib"
+Write-Host "  $BundleDir\windows-aarch64\resvg.lib"

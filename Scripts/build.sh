@@ -2006,7 +2006,7 @@ cat > "$BUNDLE_DIR/info.json" << EOF
                     }
                 },
                 {
-                    "path": "windows-x86_64/libresvg.lib",
+                    "path": "windows-x86_64/resvg.lib",
                     "supportedTriples": ["x86_64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
@@ -2015,7 +2015,7 @@ cat > "$BUNDLE_DIR/info.json" << EOF
                     }
                 },
                 {
-                    "path": "windows-aarch64/libresvg.lib",
+                    "path": "windows-aarch64/resvg.lib",
                     "supportedTriples": ["aarch64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
