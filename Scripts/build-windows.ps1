@@ -8,10 +8,10 @@
 #   - Rust toolchain with targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
 #
 # Outputs:
-#   resvg.artifactbundle/windows-x86_64/resvg.lib      (SPM primary — no lib prefix for Windows)
-#   resvg.artifactbundle/windows-x86_64/libresvg.lib   (compatibility copy)
-#   resvg.artifactbundle/windows-aarch64/resvg.lib     (SPM primary — no lib prefix for Windows)
-#   resvg.artifactbundle/windows-aarch64/libresvg.lib  (compatibility copy)
+#   resvg.artifactbundle/windows-x86_64/libresvg.lib   (SPM primary — lib-prefixed for validation)
+#   resvg.artifactbundle/windows-x86_64/resvg.lib     (fallback for lld-link -lresvg resolution)
+#   resvg.artifactbundle/windows-aarch64/libresvg.lib (SPM primary — lib-prefixed for validation)
+#   resvg.artifactbundle/windows-aarch64/resvg.lib    (fallback for lld-link -lresvg resolution)
 
 param(
     [string]$ResvgVersion = "0.45.1"
@@ -1396,7 +1396,7 @@ Remove-Item -Recurse -Force $BuildDir
 Write-Host ""
 Write-Host "=== Done ==="
 Write-Host "Windows libraries built successfully:"
-Write-Host "  $BundleDir\windows-x86_64\resvg.lib (SPM primary)"
-Write-Host "  $BundleDir\windows-x86_64\libresvg.lib (compatibility copy)"
-Write-Host "  $BundleDir\windows-aarch64\resvg.lib (SPM primary)"
-Write-Host "  $BundleDir\windows-aarch64\libresvg.lib (compatibility copy)"
+Write-Host "  $BundleDir\windows-x86_64\libresvg.lib (SPM primary)"
+Write-Host "  $BundleDir\windows-x86_64\resvg.lib (lld-link fallback)"
+Write-Host "  $BundleDir\windows-aarch64\libresvg.lib (SPM primary)"
+Write-Host "  $BundleDir\windows-aarch64\resvg.lib (lld-link fallback)"
