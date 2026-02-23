@@ -57,8 +57,7 @@ struct SvgRasterizerTests {
 
     @Test("Rasterizes from file")
     func rasterizeFromFile() throws {
-        let bundle = Bundle.module
-        guard let url = bundle.url(forResource: "test", withExtension: "svg", subdirectory: "Fixtures") else {
+        guard let url = testFixtureURL("test", ext: "svg") else {
             Issue.record("Test fixture not found")
             return
         }
