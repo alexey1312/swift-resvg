@@ -1,0 +1,52 @@
+name: Test Windows Linking
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: test-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-windows:
+    name: Build & Test on Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: compnerd/gha-setup-swift@v0.2.3
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build Windows library
+        shell: pwsh
+        run: .\Scripts\build-windows.ps1 -ResvgVersion 0.45.1
+
+      - name: Debug — list artifact bundle
+        shell: pwsh
+        run: |
+          Write-Host "=== Windows x86_64 ==="
+          Get-ChildItem resvg.artifactbundle\windows-x86_64\ | Format-Table Name, Length
+          Write-Host "=== Windows aarch64 ==="
+          Get-ChildItem resvg.artifactbundle\windows-aarch64\ | Format-Table Name, Length
+          Write-Host "=== info.json ==="
+          Get-Content resvg.artifactbundle\info.json
+          Write-Host "=== module.modulemap ==="
+          Get-Content resvg.artifactbundle\include\module.modulemap
+          Write-Host "=== Package.swift ==="
+          Get-Content Package.swift
+
+      - name: Swift build (verbose)
+        run: swift build -v
+
+      - name: Swift test
+        run: swift test -v
