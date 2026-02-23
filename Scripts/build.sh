@@ -1884,17 +1884,9 @@ echo "#endif" >> "$BUNDLE_DIR/include/resvg.h"
 echo "" >> "$BUNDLE_DIR/include/resvg.h"
 echo "#endif /* RESVG_H */" >> "$BUNDLE_DIR/include/resvg.h"
 
-# Create module map (macOS/Linux — includes link directive)
+# Create module map (shared across all platforms — no link directive)
+# Linking is handled by SPM BuildPlan (auto -lresvg) and Package.swift (.linkedLibrary for Windows)
 cat > "$BUNDLE_DIR/include/module.modulemap" << 'EOF'
-module CResvg {
-    header "resvg.h"
-    link "resvg"
-    export *
-}
-EOF
-
-# Create Windows module map (no link directive — SPM BuildPlan already generates -lresvg from filename)
-cat > "$BUNDLE_DIR/include/module-windows.modulemap" << 'EOF'
 module CResvg {
     header "resvg.h"
     export *
@@ -2018,7 +2010,7 @@ cat > "$BUNDLE_DIR/info.json" << EOF
                     "supportedTriples": ["x86_64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module-windows.modulemap",
+                        "moduleMapPath": "include/module.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 },
@@ -2027,7 +2019,7 @@ cat > "$BUNDLE_DIR/info.json" << EOF
                     "supportedTriples": ["aarch64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module-windows.modulemap",
+                        "moduleMapPath": "include/module.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 }

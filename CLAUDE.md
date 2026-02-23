@@ -48,6 +48,14 @@ Swift bindings for [resvg](https://github.com/RazrFalcon/resvg) (Rust SVG render
 
 **Requirements:** Swift 6.2+ (for SE-0482), macOS 12.0+ or Linux (x86_64/aarch64) or Windows (x86_64/aarch64 MSVC)
 
+## Gotchas
+
+- **Git LFS required**: `.a`/`.lib` files in `resvg.artifactbundle/` are stored via Git LFS. If `swift build`/`swift test` fails with `unknown file type in libresvg.a`, run `git lfs pull`.
+- **Modulemap: no `link` directive**: `module.modulemap` must NOT contain `link "resvg"`. SPM BuildPlan auto-generates `-lresvg` from the artifact bundle filename. Adding `link` in modulemap duplicates the flag and breaks Windows (lld-link doesn't add `lib` prefix).
+- **Clang ignores `moduleMapPath`**: Clang auto-discovers `module.modulemap` from `headerPaths` directories, ignoring `moduleMapPath` in `info.json`. All platforms share one `include/module.modulemap`.
+- **Windows linking**: Uses `.linkedLibrary("libresvg")` in Package.swift to generate `-llibresvg` → lld-link finds `libresvg.lib`. System libs (Ws2_32, Userenv, ntdll) also declared there.
+- **Release branch**: `release/artifact-bundle` has its own `Package.swift` (URL-based binary target). Changes to linker settings must be applied to both.
+
 <!-- OPENSPEC:START -->
 ## OpenSpec Instructions
 

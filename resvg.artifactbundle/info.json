@@ -38,7 +38,7 @@
                     "supportedTriples": ["x86_64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module-windows.modulemap",
+                        "moduleMapPath": "include/module.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 },
@@ -47,7 +47,7 @@
                     "supportedTriples": ["aarch64-unknown-windows-msvc"],
                     "staticLibraryMetadata": {
                         "headerPaths": ["include"],
-                        "moduleMapPath": "include/module-windows.modulemap",
+                        "moduleMapPath": "include/module.modulemap",
                         "linkedLibraries": ["Ws2_32", "Userenv", "ntdll"]
                     }
                 }
